@@ -58,10 +58,15 @@ test('blogs are returned as json', async () => {
     .expect('Content-Type', /application\/json/)
 })
 
-test('all notes are returned', async () => {
+test('all blogs are returned', async () => {
   const response = await api.get('/api/blogs')
 
   expect(response.body).toHaveLength(initialBlogs.length)
+})
+
+test('The unique identifier property of the blog posts is id, which is named as _id by default', async () => {
+  const response = await api.get('/api/blogs')
+  expect(JSON.parse(response.text)[0].id).toBeDefined()
 })
 
 afterAll(() => {
