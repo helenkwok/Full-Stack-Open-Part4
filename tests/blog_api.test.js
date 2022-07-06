@@ -98,6 +98,15 @@ test('400 Bad Request if the title and url properties are missing from the reque
   expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length)
 })
 
+test('delete a blog post', async () => {
+  const blogsForStart = await helper.blogsInDb()
+  await api
+    .delete(`/api/blogs/${blogsForStart[Math.floor(Math.random() * blogsForStart.length)].id}`)
+    .expect(204)
+  const blogsAtEnd = await helper.blogsInDb()
+  expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length - 1)
+})
+
 afterAll(() => {
   mongoose.connection.close()
 })
