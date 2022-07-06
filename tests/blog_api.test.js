@@ -99,12 +99,33 @@ test('400 Bad Request if the title and url properties are missing from the reque
 })
 
 test('delete a blog post', async () => {
+  const randomIndex = Math.floor(Math.random() * helper.initialBlogs.length)
   const blogsForStart = await helper.blogsInDb()
+  const randomBlogId = blogsForStart[randomIndex].id
   await api
-    .delete(`/api/blogs/${blogsForStart[Math.floor(Math.random() * blogsForStart.length)].id}`)
+    .delete(`/api/blogs/${randomBlogId}`)
     .expect(204)
   const blogsAtEnd = await helper.blogsInDb()
   expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length - 1)
+  await api
+    .get(`/api/blogs/${randomBlogId}`)
+    .expect(404)
+})
+
+test('update a blog post', async () => {
+  const randomIndex = Math.floor(Math.random() * helper.initialBlogs.length)
+  const randomLikes = Math.floor(Math.random() * 100)
+  const BlogToUpdate = {
+    likes: randomLikes,
+  }
+  const blogsForStart = await helper.blogsInDb()
+  await api
+    .put(`/api/blogs/${blogsForStart[randomIndex].id}`)
+    .send(BlogToUpdate)
+    .expect(200)
+  const blogsAtEnd = await helper.blogsInDb()
+  expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length)
+  expect(blogsAtEnd[randomIndex].likes).toEqual(randomLikes)
 })
 
 afterAll(() => {
