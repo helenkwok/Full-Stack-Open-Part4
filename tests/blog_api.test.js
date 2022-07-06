@@ -1,54 +1,18 @@
 const mongoose = require('mongoose')
 const supertest = require('supertest')
+const helper = require('./test_helper')
 const app = require('../app')
 const api = supertest(app)
-const Blog = require('../models/blog')
 
-const initialBlogs = [
-  {
-    title: 'React patterns',
-    author: 'Michael Chan',
-    url: 'https://reactpatterns.com/',
-    likes: 7,
-  },
-  {
-    title: 'Go To Statement Considered Harmful',
-    author: 'Edsger W. Dijkstra',
-    url: 'http://www.u.arizona.edu/~rubinson/copyright_violations/Go_To_Considered_Harmful.html',
-    likes: 5,
-  },
-  {
-    title: 'Canonical string reduction',
-    author: 'Edsger W. Dijkstra',
-    url: 'http://www.cs.utexas.edu/~EWD/transcriptions/EWD08xx/EWD808.html',
-    likes: 12,
-  },
-  {
-    title: 'First class tests',
-    author: 'Robert C. Martin',
-    url: 'http://blog.cleancoder.com/uncle-bob/2017/05/05/TestDefinitions.htmll',
-    likes: 10,
-  },
-  {
-    title: 'TDD harms architecture',
-    author: 'Robert C. Martin',
-    url: 'http://blog.cleancoder.com/uncle-bob/2017/03/03/TDD-Harms-Architecture.html',
-    likes: 0,
-  },
-  {
-    title: 'Type wars',
-    author: 'Robert C. Martin',
-    url: 'http://blog.cleancoder.com/uncle-bob/2016/05/01/TypeWars.html',
-    likes: 2,
-  }
-]
+const Blog = require('../models/blog')
 
 beforeEach(async () => {
   await Blog.deleteMany({})
-  for (let i = 0; i < initialBlogs.length; i++) {
-    let blogObject = new Blog(initialBlogs[i])
-    await blogObject.save()
-  }
+
+  const blogObjects = helper.initialBlogs
+    .map(blog => new Blog(blog))
+  const promiseArray = blogObjects.map(blog => blog.save())
+  await Promise.all(promiseArray)
 })
 
 test('blogs are returned as json', async () => {
@@ -60,7 +24,7 @@ test('blogs are returned as json', async () => {
 
 test('all blogs are returned', async () => {
   const response = await api.get('/api/blogs')
-  expect(response.body).toHaveLength(initialBlogs.length)
+  expect(response.body).toHaveLength(helper.initialBlogs.length)
 })
 
 test('unique identifier property of the blog posts is id, which is named as _id by default', async () => {
@@ -70,7 +34,7 @@ test('unique identifier property of the blog posts is id, which is named as _id 
 
 test('a specific blog is within the returned blogs', async () => {
   const response = await api.get('/api/blogs')
-  const title = initialBlogs[Math.floor(Math.random()*initialBlogs.length)].title
+  const title = helper.initialBlogs[Math.floor(Math.random()*helper.initialBlogs.length)].title
   const titles = response.body.map(r => r.title)
   expect(titles).toContain(title)
 })
@@ -88,16 +52,16 @@ test('a new blog is successfully created', async () => {
     .expect(201)
     .expect('Content-Type', /application\/json/)
 
-  const response = await api.get('/api/blogs')
-  expect(response.body).toHaveLength(initialBlogs.length + 1)
+  const blogsAtEnd = await helper.blogsInDb()
+  expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length + 1)
 
-  const storedBlog = response.body[response.body.length - 1]
-  expect({
-    title: storedBlog.title,
-    author: storedBlog.author,
-    url: storedBlog.url,
-    likes: storedBlog.likes
-  }).toEqual(newBlog)
+  const storedBlog = blogsAtEnd[blogsAtEnd.length - 1]
+  expect(blogsAtEnd).toContainEqual(
+    {
+      id: storedBlog.id,
+      ...newBlog
+    }
+  )
 })
 
 test('if the likes property is missing from the request, it will default to the value 0', async () => {
@@ -112,10 +76,26 @@ test('if the likes property is missing from the request, it will default to the 
     .expect(201)
     .expect('Content-Type', /application\/json/)
 
-  const response = await api.get('/api/blogs')
+  const blogsAtEnd = await helper.blogsInDb()
+  expect(blogsAtEnd[blogsAtEnd.length - 1].likes).toEqual(0)
+})
 
-  const storedBlog = response.body[response.body.length - 1]
-  expect(storedBlog.likes).toEqual(0)
+test('toContainEqual', () => {
+  expect(['a', 'b', { foo: 'bar' }, 'd']).toContainEqual({ foo: 'bar' })
+})
+
+test('400 Bad Request if the title and url properties are missing from the request data', async () => {
+  const newBlog = {
+    author: 'Anon',
+    likes: 1,
+  }
+  await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .expect(400)
+
+  const blogsAtEnd = await helper.blogsInDb()
+  expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length)
 })
 
 afterAll(() => {
