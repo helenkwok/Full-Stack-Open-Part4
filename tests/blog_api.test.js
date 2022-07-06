@@ -100,6 +100,24 @@ test('a new blog is successfully created', async () => {
   }).toEqual(newBlog)
 })
 
+test('if the likes property is missing from the request, it will default to the value 0', async () => {
+  const newBlog = {
+    title: 'Dummy Blog',
+    author: 'Anon',
+    url: 'http://blog.dummy.com',
+  }
+  await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .expect(201)
+    .expect('Content-Type', /application\/json/)
+
+  const response = await api.get('/api/blogs')
+
+  const storedBlog = response.body[response.body.length - 1]
+  expect(storedBlog.likes).toEqual(0)
+})
+
 afterAll(() => {
   mongoose.connection.close()
 })
