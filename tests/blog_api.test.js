@@ -100,8 +100,8 @@ test('400 Bad Request if the title and url properties are missing from the reque
 
 test('delete a blog post', async () => {
   const randomIndex = Math.floor(Math.random() * helper.initialBlogs.length)
-  const blogsForStart = await helper.blogsInDb()
-  const randomBlogId = blogsForStart[randomIndex].id
+  const blogsAtStart = await helper.blogsInDb()
+  const randomBlogId = blogsAtStart[randomIndex].id
   await api
     .delete(`/api/blogs/${randomBlogId}`)
     .expect(204)
@@ -118,9 +118,9 @@ test('update a blog post', async () => {
   const BlogToUpdate = {
     likes: randomLikes,
   }
-  const blogsForStart = await helper.blogsInDb()
+  const blogsAtStart = await helper.blogsInDb()
   await api
-    .put(`/api/blogs/${blogsForStart[randomIndex].id}`)
+    .put(`/api/blogs/${blogsAtStart[randomIndex].id}`)
     .send(BlogToUpdate)
     .expect(200)
   const blogsAtEnd = await helper.blogsInDb()
