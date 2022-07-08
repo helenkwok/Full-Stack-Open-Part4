@@ -6,11 +6,15 @@ blogsRouter.get('/', async (request, response) => {
   const blogs = await Blog
     .find({})
     .populate('user', { username: 1, name: 1 })
+
   response.json(blogs)
 })
 
 blogsRouter.get('/:id', async (request, response) => {
-  const blog = await Blog.findById(request.params.id)
+  const blog = await Blog
+    .findById(request.params.id)
+    .populate('user', { username: 1, name: 1 })
+
   blog ?
     response.json(blog)
     :
@@ -18,6 +22,10 @@ blogsRouter.get('/:id', async (request, response) => {
 })
 
 blogsRouter.post('/', middleware.userExtractor, async (request, response) => {
+  if (!request.user) {
+    return response.status(401).json({ error: 'token missing or invalid' })
+  }
+
   const user = request.user
   const body = request.body
 
@@ -38,6 +46,9 @@ blogsRouter.post('/', middleware.userExtractor, async (request, response) => {
 })
 
 blogsRouter.delete('/:id', middleware.userExtractor, async (request, response) => {
+  if (!request.user) {
+    return response.status(401).json({ error: 'token missing or invalid' })
+  }
   const user = request.user
 
   const blogToDelete = await Blog.findById(request.params.id)
@@ -55,7 +66,7 @@ blogsRouter.delete('/:id', middleware.userExtractor, async (request, response) =
       response.status(204).end()
 
     } else {
-      response.status(400).end()
+      response.status(401).end()
     }
   } else {
     response.status(404).end()
@@ -63,6 +74,9 @@ blogsRouter.delete('/:id', middleware.userExtractor, async (request, response) =
 })
 
 blogsRouter.put('/:id', middleware.userExtractor, async (request, response) => {
+  if (!request.user) {
+    return response.status(401).json({ error: 'token missing or invalid' })
+  }
   const user = request.user
   const blog = {
     title: request.body.title,
@@ -79,7 +93,7 @@ blogsRouter.put('/:id', middleware.userExtractor, async (request, response) => {
 
       response.json(updatedBlog)
     } else {
-      response.status(400).end()
+      response.status(401).end()
     }
   } else {
     response.status(404).end()
