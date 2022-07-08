@@ -1,16 +1,41 @@
 const mongoose = require('mongoose')
 const supertest = require('supertest')
+const bcrypt = require('bcrypt')
 const helper = require('./test_helper')
 const app = require('../app')
 const api = supertest(app)
 
 const Blog = require('../models/blog')
+const User = require('../models/user')
+
+beforeAll(async () => {
+  await User.deleteMany({})
+
+  const passwordHash = await bcrypt.hash('sekret', 10)
+
+  const initialUsers = [
+    { username: 'hellas', name: 'Arto Hellas', passwordHash },
+    { username: 'mluukkai', name: 'Matti Luukkainen', passwordHash }
+  ]
+  const userObjects = initialUsers
+    .map(user => new User(user))
+  const promiseArray = userObjects.map(user => user.save())
+  await Promise.all(promiseArray)
+})
 
 beforeEach(async () => {
   await Blog.deleteMany({})
 
+  const users = await User
+    .find({})
+
   const blogObjects = helper.initialBlogs
-    .map(blog => new Blog(blog))
+    .map(blog => new Blog(
+      {
+        ...blog,
+        user: users[0]._id
+      }
+    ))
   const promiseArray = blogObjects.map(blog => blog.save())
   await Promise.all(promiseArray)
 })
@@ -40,14 +65,24 @@ test('a specific blog is within the returned blogs', async () => {
 })
 
 test('a new blog is successfully created', async () => {
+  const loggedInToken = await api
+    .post('/api/login')
+    .set({ 'Content-Type': 'application/json' })
+    .send({
+      username: 'hellas',
+      password: 'sekret',
+    })
+
   const newBlog = {
     title: 'Dummy Blog',
     author: 'Anon',
     url: 'http://blog.dummy.com',
-    likes: 1,
+    likes: 1
   }
+
   await api
     .post('/api/blogs')
+    .set({ 'Authorization': `bearer ${JSON.parse(loggedInToken.text).token}` })
     .send(newBlog)
     .expect(201)
     .expect('Content-Type', /application\/json/)
@@ -59,12 +94,21 @@ test('a new blog is successfully created', async () => {
   expect(blogsAtEnd).toContainEqual(
     {
       id: storedBlog.id,
-      ...newBlog
+      ...newBlog,
+      user: storedBlog.user
     }
   )
 })
 
 test('if the likes property is missing from the request, it will default to the value 0', async () => {
+  const loggedInToken = await api
+    .post('/api/login')
+    .set({ 'Content-Type': 'application/json' })
+    .send({
+      username: 'hellas',
+      password: 'sekret',
+    })
+
   const newBlog = {
     title: 'Dummy Blog',
     author: 'Anon',
@@ -72,6 +116,7 @@ test('if the likes property is missing from the request, it will default to the 
   }
   await api
     .post('/api/blogs')
+    .set({ 'Authorization': `bearer ${JSON.parse(loggedInToken.text).token}` })
     .send(newBlog)
     .expect(201)
     .expect('Content-Type', /application\/json/)
@@ -80,17 +125,22 @@ test('if the likes property is missing from the request, it will default to the 
   expect(blogsAtEnd[blogsAtEnd.length - 1].likes).toEqual(0)
 })
 
-test('toContainEqual', () => {
-  expect(['a', 'b', { foo: 'bar' }, 'd']).toContainEqual({ foo: 'bar' })
-})
-
 test('400 Bad Request if the title and url properties are missing from the request data', async () => {
+  const loggedInToken = await api
+    .post('/api/login')
+    .set({ 'Content-Type': 'application/json' })
+    .send({
+      username: 'hellas',
+      password: 'sekret',
+    })
+
   const newBlog = {
     author: 'Anon',
     likes: 1,
   }
   await api
     .post('/api/blogs')
+    .set({ 'Authorization': `bearer ${JSON.parse(loggedInToken.text).token}` })
     .send(newBlog)
     .expect(400)
 
@@ -99,11 +149,20 @@ test('400 Bad Request if the title and url properties are missing from the reque
 })
 
 test('delete a blog post', async () => {
+  const loggedInToken = await api
+    .post('/api/login')
+    .set({ 'Content-Type': 'application/json' })
+    .send({
+      username: 'hellas',
+      password: 'sekret',
+    })
+
   const randomIndex = Math.floor(Math.random() * helper.initialBlogs.length)
   const blogsAtStart = await helper.blogsInDb()
   const randomBlogId = blogsAtStart[randomIndex].id
   await api
     .delete(`/api/blogs/${randomBlogId}`)
+    .set({ 'Authorization': `bearer ${JSON.parse(loggedInToken.text).token}` })
     .expect(204)
   const blogsAtEnd = await helper.blogsInDb()
   expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length - 1)
@@ -113,6 +172,14 @@ test('delete a blog post', async () => {
 })
 
 test('update a blog post', async () => {
+  const loggedInToken = await api
+    .post('/api/login')
+    .set({ 'Content-Type': 'application/json' })
+    .send({
+      username: 'hellas',
+      password: 'sekret',
+    })
+
   const randomIndex = Math.floor(Math.random() * helper.initialBlogs.length)
   const randomLikes = Math.floor(Math.random() * 100)
   const BlogToUpdate = {
@@ -121,11 +188,32 @@ test('update a blog post', async () => {
   const blogsAtStart = await helper.blogsInDb()
   await api
     .put(`/api/blogs/${blogsAtStart[randomIndex].id}`)
+    .set({ 'Authorization': `bearer ${JSON.parse(loggedInToken.text).token}` })
     .send(BlogToUpdate)
     .expect(200)
   const blogsAtEnd = await helper.blogsInDb()
   expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length)
   expect(blogsAtEnd[randomIndex].likes).toEqual(randomLikes)
+})
+
+test('fail to add a blog if a token is not provided', async () => {
+  const loggedInToken = undefined
+
+  const newBlog = {
+    title: 'Dummy Blog',
+    author: 'Anon',
+    url: 'http://blog.dummy.com',
+    likes: 1
+  }
+
+  await api
+    .post('/api/blogs')
+    .set({ 'Authorization': `bearer ${loggedInToken}` })
+    .send(newBlog)
+    .expect(401)
+
+  const blogsAtEnd = await helper.blogsInDb()
+  expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length)
 })
 
 afterAll(() => {
